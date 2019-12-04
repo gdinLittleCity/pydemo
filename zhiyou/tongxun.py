@@ -1,7 +1,7 @@
-import urllib.request
-from lxml import html
 import re
-import json
+import urllib.request
+
+from lxml import html
 
 
 class Company:
