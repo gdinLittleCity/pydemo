@@ -5,6 +5,18 @@ import os
 from xlrd import xldate_as_datetime, xldate_as_tuple
 import pandas as pd
 
+
+def is_number(n):
+    is_number = True
+    try:
+        num = float(n)
+        # 检查 "nan"
+        is_number = num == num  # 或者使用 `math.isnan(num)`
+    except ValueError:
+        is_number = False
+    return is_number
+
+
 def time_formate(cell_data):
     # 2 number, 3 date
     if cell_data.ctype == 2 or cell_data.ctype == 3:
@@ -27,6 +39,7 @@ def time_formate(cell_data):
 
     return time_formate_str
 
+
 def get_dir_file_path(dir_path):
     if dir_path == None or dir_path == '':
         return []
@@ -45,6 +58,7 @@ def get_dir_file_path(dir_path):
 
     return file_path_list
 
+
 def handleDate(path, proName, proType, proNum):
     print('解析 excel:{} 开始......'.format(path))
     data_arr = []
@@ -55,7 +69,11 @@ def handleDate(path, proName, proType, proNum):
     rows = sheet.nrows
     cols = sheet.ncols
     print('sheet rows,cols:', rows, cols)
-    for i in range(2, sheet.nrows - 4):
+    for i in range(2, sheet.nrows):
+        first_cell = sheet.cell(i, 0)
+        # 第一行非数字,则说明此行数据是不重要的
+        if not is_number(first_cell.value):
+            continue
         data = {
             '产品名称': proName, '型号': proType, '台数': proNum, '公司名称': sheet.row_values(i)[1],
             '结算方式': sheet.row_values(i)[4]
@@ -81,10 +99,11 @@ def handleDate(path, proName, proType, proNum):
     print('解析 excel:{} 结束......'.format(path))
     return data_arr
 
-def handleExcel():
+
+def handleExcel(excel_path):
     print('处理excel 数据开始.....................')
     # 在路径前面加r，即保持字符原始值的意思
-    all_file_path = get_dir_file_path(r'C:\Users\yamei\Desktop\原材料\付款')
+    all_file_path = get_dir_file_path(excel_path)
     print('文件数量:{},所有文件:{}'.format(all_file_path.__len__(), all_file_path))
     index = 0
     all_data = []
@@ -104,14 +123,17 @@ def handleExcel():
         all_data.extend(data_list)
     return all_data
 
+
 def write_excel():
-    all = handleExcel()
+    excel_path = r'E:\公司\亚美\原材料-formate\付款'
+    all = handleExcel(excel_path)
     print('数据量:{},所有数据:{}'.format(all.__len__(), all))
     df = pd.DataFrame(data=all)
-    path = r'C:\Users\yamei\Desktop\output\out.xlsx'
+    path = r'E:\公司\亚美\out\out.xlsx'
     f = open(path, 'w')
     f.close()
     df.to_excel(path, index=False)
     print('写入文件 完成.................')
-write_excel()
 
+
+write_excel()
