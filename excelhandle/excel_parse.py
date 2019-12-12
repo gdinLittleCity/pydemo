@@ -1,6 +1,7 @@
 import xlrd
 import re
 import datetime
+import calendar
 import os
 from xlrd import xldate_as_datetime, xldate_as_tuple
 from xlrd import sheet
@@ -147,8 +148,24 @@ def handleExcel(excel_path):
         all_data.extend(data_list)
     return all_data
 
+def move_col(df: pd.DataFrame, col_name: str, position: int):
+    col_ser = df.pop(col_name)
+    df.insert(position, col_name, col_ser)
+
 def sort_data(data_list):
     df = pd.DataFrame(data=data_list)
+    # col_sort_df = df.sort_index(ascending=True, axis=1)
+    # pro_name = '产品名称'
+    # pro_type = '型号'
+    # pro_num = '台数'
+    # pro_com_name = '公司名称'
+    # pro_cal_type = '结算方式'
+    # move_col(df, pro_name, 0)
+    # move_col(df, pro_type, 1)
+    # move_col(df, pro_num, 2)
+    # move_col(df, pro_com_name, 3)
+    # move_col(df, pro_cal_type, 4)
+    # return col_sort_df
     # 表头
     header = list(df)
     row_data = df.values.tolist()
@@ -167,24 +184,74 @@ def sort_data(data_list):
     df_sort = pd.DataFrame(data=list(zip(*no_sort_data)))
     return df_sort
 
+def get_month_first_day_and_last_day(year = None, month = None):
+    if year:
+        year = int(year)
+    else:
+        year = datetime.date.today().year
+    if month:
+        month = int(month)
+    else:
+        month = datetime.date.today().month
+    firstDayWeekDay, monthRange = calendar.monthrange(year, month)
+    fist_day = datetime.date(year=year, month = month, day=1).strftime('%Y%m%d')
+    last_day = datetime.date(year, month, monthRange).strftime('%Y%m%d')
+    return fist_day,last_day
+def col_sum(x):
+    num_array =  x.array
+    sum_result = 0
+    for num in num_array:
+        if not num:
+            num = 0
+        sum_result = float(num) + sum_result
+    return sum_result
+
 def count_by_month(data_frame: pd.DataFrame):
+    count_row = []
+    column_name = pd.Series(data_frame.values.tolist()[0])
+    data_frame.columns = column_name # 重命名列索引
     tran_2_row = data_frame.T
-    print(tran_2_row.loc[0])
-    # print(tran_2_row.head(5))
-    return
+    # print(list(data_frame))
+    tran_2_row.columns = pd.Series(tran_2_row.values.tolist()[0]) # 重命名 列索引
+    # print(list(tran_2_row.columns))
+    count_row.extend(tran_2_row.iloc[0:5,:].values.tolist())
+    time_data = tran_2_row.iloc[5:,:]
+    time_data.fillna(0, inplace=True)
+    print(time_data)
+    for t_year in range(2019, 2021):
+        print('year:{}'.format(t_year))
+        for t_moth in range(1, 13):
+            s_date,e_date = get_month_first_day_and_last_day(year=t_year, month= t_moth)
+            df = time_data[(time_data['产品名称'] >= s_date) & (time_data['产品名称'] <= e_date)]
+            if df.shape[0] <= 0:
+                continue
+            cal_df = df.iloc[:, 1:]
+
+            t_moth_str = str(t_moth) if  t_moth >= 10 else '0' + str(t_moth)
+            year_month = str(t_year) + t_moth_str
+            cal_df.loc[year_month] = cal_df.apply(col_sum)
+            count_result = cal_df.values.tolist()[cal_df.shape[0] - 1]
+            count_result.insert(0, year_month)
+            count_row.append(count_result)
+
+    print(count_row)
+    write_df = pd.DataFrame(count_row)
+    # write_df.T.to_excel(r'C:\Users\yamei\Desktop\output\付款汇总_1.xlsx', index=None, columns=None)
+    return write_df.T
 
 def write_excel():
-    excel_path = r'C:\MyJavaWorkspace\原材料-formate-v2\付款'
+    excel_path = os.path.join(os.getcwd(), 'excel')
     all = handleExcel(excel_path)
     # print('数据量:{},所有数据:{}'.format(all.__len__(), all))
     print('数据量:{}'.format(all.__len__()))
     df_sort = sort_data(all)
-    count_by_month(df_sort)
+    df_sort_count = count_by_month(df_sort)
     # path = r'C:\Users\yamei\Desktop\output\付款汇总.xlsx'
-    # writer = pd.ExcelWriter(path)
-    # df_sort.to_excel(writer,'日统计', index=False)
-    # df_sort.to_excel(writer,'月统计', index=False)
-    # writer.save()
+    path = os.path.join(os.getcwd(), 'out/付款汇总.xlsx')
+    writer = pd.ExcelWriter(path)
+    df_sort.to_excel(writer,'日统计', index=False)
+    df_sort_count.to_excel(writer,'月统计', index=False)
+    writer.save()
     print('写入文件 完成.................')
 
 
@@ -192,7 +259,7 @@ def write_excel():
 
 def int_test():
     num = int('0819')
-    print(num)
+    print( os.path.join(os.getcwd(), 'out/付款汇总.xlsx'))
 
 
 write_excel()
