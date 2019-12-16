@@ -7,6 +7,12 @@ from xlrd import xldate_as_datetime, xldate_as_tuple
 from xlrd import sheet
 import pandas as pd
 
+pro_name = '产品名称'
+pro_type = '型号'
+pro_num = '台数'
+pro_com_name = '公司名称'
+pro_cal_type = '结算方式'
+pro_gain_time = '预计交货时间'
 
 def is_number(n):
     is_number = True
@@ -152,6 +158,22 @@ def move_col(df: pd.DataFrame, col_name: str, position: int):
     col_ser = df.pop(col_name)
     df.insert(position, col_name, col_ser)
 
+def sort_data_by_index(data_list):
+    df = pd.DataFrame(data=data_list)
+    col_sort_df = df.sort_index(ascending=True, axis=1)
+    # pro_name = '产品名称'
+    # pro_type = '型号'
+    # pro_num = '台数'
+    # pro_com_name = '公司名称'
+    # pro_cal_type = '结算方式'
+    move_col(col_sort_df, pro_name, 0)
+    move_col(col_sort_df, pro_type, 1)
+    move_col(col_sort_df, pro_num, 2)
+    move_col(col_sort_df, pro_com_name, 3)
+    move_col(col_sort_df, pro_cal_type, 4)
+    move_col(col_sort_df, pro_gain_time, 5)
+    return col_sort_df
+
 def sort_data(data_list):
     df = pd.DataFrame(data=data_list)
     # col_sort_df = df.sort_index(ascending=True, axis=1)
@@ -239,13 +261,40 @@ def count_by_month(data_frame: pd.DataFrame):
     # write_df.T.to_excel(r'C:\Users\yamei\Desktop\output\付款汇总_1.xlsx', index=None, columns=None)
     return write_df.T
 
+def filter_fun(time_list: list, s_date: str, e_date: str):
+    return [x for x in time_list if s_date <= x and x <= e_date]
+
+def count_by_month_NO_T(data_frame: pd.DataFrame):
+    # 获取列索引
+    col_index_list = list(data_frame)
+    no_change_col_index = [pro_name,pro_type, pro_num, pro_com_name, pro_cal_type, pro_gain_time]
+    month_df = data_frame[no_change_col_index]
+
+    for t_year in range(2019, 2021):
+        print('{}年开始月统计数据'.format(t_year))
+        for t_moth in range(1, 13):
+            s_date, e_date = get_month_first_day_and_last_day(year=t_year, month=t_moth)
+            time_list = filter_fun(col_index_list,s_date, e_date)
+            df = data_frame[time_list]
+            # df的列数<=0 说明没有数据, 通过列索引获取到的df会有行索引,行数不变;如果列索引不存在,返回的df有行索引,没有列索引
+            if df.shape[1] <= 0:
+                continue
+            df.fillna(0, inplace=True)
+            t_moth_str = str(t_moth) if t_moth >= 10 else '0' + str(t_moth)
+            year_month = str(t_year) + t_moth_str
+            month_df[year_month] = df.apply(col_sum,axis=1)
+            # print(month_df[year_month])
+        print('{}年结束月统计数据,统计结果的列索引:{}'.format(t_year, list(month_df)))
+    return month_df
+
+
 def write_excel():
     excel_path = os.path.join(os.getcwd(), 'excel')
     all = handleExcel(excel_path)
     # print('数据量:{},所有数据:{}'.format(all.__len__(), all))
     print('数据量:{}'.format(all.__len__()))
-    df_sort = sort_data(all)
-    df_sort_count = count_by_month(df_sort)
+    df_sort = sort_data_by_index(all)
+    df_sort_count = count_by_month_NO_T(df_sort)
     # path = r'C:\Users\yamei\Desktop\output\付款汇总.xlsx'
     path = os.path.join(os.getcwd(), 'out/付款汇总.xlsx')
     writer = pd.ExcelWriter(path)
