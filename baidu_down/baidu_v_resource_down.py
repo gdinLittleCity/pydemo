@@ -7,113 +7,133 @@ import urllib
 import os
 import re
 import getopt
-import time, datetime
+import time
+
+'''
+    检查 是否完成
+'''
+def get_un_finish_dict():
+    un_finish_dict = {}
+    if os.path.exists("soure_url_list.txt"):
+        if os.path.exists("finish.txt"):
+            with open("finish.txt") as finish_file:
+                finish_list = finish_file.readlines()
+                with open("soure_url_list.txt") as soure_list_file:
+                    soure_list = soure_list_file.readlines()
+                    # 资源列表已下载
+                    if soure_list.__getitem__(0).find("EXTM3U") > 0:
+                        line_num = 0
+                        for soure in soure_list:
+                            line_num = line_num + 1
+                            if finish_list.count(soure) == 0 and soure.startswith("https"):
+                                un_finish_dict[soure] = line_num
+
+        else:
+            with open("soure_url_list.txt") as soure_list_file:
+                soure_list = soure_list_file.readlines()
+                # 资源列表已下载
+                if soure_list.__getitem__(0).find("EXTM3U") > 0:
+                    line_num = 0
+                    for soure in soure_list:
+                        line_num = line_num + 1
+                        if soure.startswith("https"):
+                            un_finish_dict[soure] = line_num
+    print("un finish put in dict count:{count}".format(count=len(un_finish_dict)))
+    return un_finish_dict
 
 def m3u8_down(url, cookie):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36",
-               "Sec-Fetch-Site": "same-origin",
-               "Referer": "https://pan.baidu.com/play/video",
-               "Host": "pan.baidu.com",
-               "Cookie": cookie
-               }
-    res = requests.get(url=url, headers=headers)
-    with open('soure_url_list.txt', "wb") as code:
-        code.write(res.content)
-    v_down(cookie)
+    cookies = "PSTM=1565077563; BIDUPSID=0891F37C2E76F2C004C27154D48C7BD8; pan_login_way=1; BAIDUID=000A294E42D801E8F1D8C7EE7642989A:SL=0:NR=10:FG=1; PANWEB=1; MCITY=-%3A; BDORZ=B490B5EBF6F3CD402E515D22BCDA1598; __yjs_duid=1_063f543b3f8f5fb2223ffa124f056c971609117862039; csrfToken=FIlno1UeBDZnRlED7atDgPnQ; Hm_lvt_7a3960b6f067eb0085b7f96ff5e660b0=1608636529,1608637685,1609203364,1609207287; BDUSS=3lIUEg2YXZtYjdWRW9QMnJZU21BeGR6em5Od3laZzhpM0w5N1g2WjdRSlNHeEpnSVFBQUFBJCQAAAAAAQAAAAEAAACO1b4vva3Ez9Chs8cwNTE1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFKO6l9SjupfZ; BDUSS_BFESS=3lIUEg2YXZtYjdWRW9QMnJZU21BeGR6em5Od3laZzhpM0w5N1g2WjdRSlNHeEpnSVFBQUFBJCQAAAAAAQAAAAEAAACO1b4vva3Ez9Chs8cwNTE1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFKO6l9SjupfZ; SCRC=cb2660f8b2eb14705f0bdf421179a346; STOKEN=6ab305af548b93681ac02324354ab9da932df08562b7e8bce2570abcecf05d34; BDCLND=Y8gUtVPquPHVWrNCBxUFpEdxTSftRB85vHvW68nkIos%3D; delPer=0; PSINO=6; BAIDUID_BFESS=000A294E42D801E8F1D8C7EE7642989A:SL=0:NR=10:FG=1; BDRCVFR[feWj1Vr5u3D]=I67x6TjHwwYf0; H_PS_PSSID=1449_33306_32974_33286_33351_33313_33312_33311_33310_33309_33308_33307_33372_33370; Hm_lpvt_7a3960b6f067eb0085b7f96ff5e660b0=1609296524; PANPSC=9624461332415161365%3AKkwrx6t0uHCtza0ZY%2Fm4hBUdqzE5qOrzN7dOlg4IbW2z9Le326YitQPZN16gvceAVaSXcDBdXtjPzW21GgvS0EpDgNqxv39mOe7mMiQIzh%2ByyezoC8D9eCHshfz3IZqPyIUHUDWcQM3ibxER0vwJhdHhJ5aZPptoX0r3JWTW68DiLaLUl0KD5CiPeEEq9nKY%2BBPsSDpTJNs%3D"
+    un_finish_dict = get_un_finish_dict()
+    if os.path.exists("soure_url_list.txt") and len(un_finish_dict)>0:
+        v_down(cookies, un_finish_dict)
+    else:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36",
+                   "Sec-Fetch-Site": "same-origin",
+                   "Referer": "https://pan.baidu.com/play/video",
+                   "Host": "pan.baidu.com",
+                   "Cookie": cookies
+                   }
+        res = requests.get(url=url, headers=headers)
+        with open('soure_url_list.txt', "wb") as code:
+            code.write(res.content)
+        v_down(cookies, get_un_finish_dict())
 
-def parse_url_list():
-    with open('soure_url_list.txt', "r") as code:
+def v_down(cookie, un_finish_dict):
+    with open('soure_url_list.txt') as code:
         soure_list = code.readlines()
-    line_num = 0
-    count = 0
-    call_num =0
-    for line in soure_list:
-        count = count +1
-        if line.find("EXT-X-DISCONTINUITY") > 0:
-            continue
-        if line_num < 3 or len(soure_list) - 3 < line_num or line_num % 2 == 0:
-            line_num = line_num + 1
-            continue
-        else:
-            print("行数:{num}, 内容:{content}".format(num=count, content= line))
-            line_num = line_num + 1
-            call_num = call_num + 1
-
-def v_down(cookie):
-    with open('soure_url_list.txt', "r") as code:
-        soure_list = code.readlines()
-    line_num = 0
-    count = 0
-    call_num = 0
+        # 非m3u8格式
+        if soure_list.__getitem__(0).find("#EXTM3U") < 0:
+            print("下载m3u8文件出错,需更换url.")
+            return
     now = int(time.time())
-    for line in soure_list:
-        count = count +1
-        if line.find("EXT-X-DISCONTINUITY") > 0:
-            continue
-        if line_num < 3 or len(soure_list) - 3 < line_num or line_num % 2 == 0:
-            line_num = line_num + 1
-            continue
+    for (line,line_num) in un_finish_dict.items():
+        print("行数:{num}, line:{line}".format(num=line_num, line=line))
+        parsed_result = urlparse(line)
+        out_file_name = remove(urllib.parse.unquote(urllib.parse.parse_qs(parsed_result.query).get('fn')[0]))
+        file_name = out_file_name.replace(".", "_" + str(line_num) + ".")
+        print('file_name:{fileName}'.format(fileName=file_name))
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36",
+            ":authority": "v1.baidupcs.com",
+            ":method": "GET",
+            ":path": parsed_result.path + "?" + parsed_result.query,
+            ":scheme": "https",
+            "accept": "*/*",
+            "accept-encoding": "gzip,deflate,br",
+            "accept-language": "zh-CN,zh;q=0.9",
+            "origin": "https://pan.baidu.com",
+            "referer": "https://pan.baidu.com",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "Cookie": cookie
+        }
+        sessions = requests.session()
+        sessions.mount('https://v1.baidupcs.com', HTTP20Adapter())
+        res = sessions.get(url=line, headers=headers, timeout=(60, 600))
+        print("status code:{status}".format(status=res.status_code))
+        if res.status_code == 200:
+            write_finish_file(line)
+            input_path = write_file_list(file_name, now)
+            with open(os.path.join(input_path, file_name), "wb") as code:
+                code.write(res.content)
         else:
-            print("行数:{num}, 内容:{content}".format(num=count, content= line))
-            line_num = line_num + 1
-            call_num = call_num + 1
-            parsed_result = urlparse(line)
-            out_file_name = remove(urllib.parse.unquote(urllib.parse.parse_qs(parsed_result.query).get('fn')[0]))
-            file_name = out_file_name.replace(".", "_"+str(call_num)+".")
-            print('file_name:{fileName}'.format(fileName=file_name))
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36",
-                ":authority": "v1.baidupcs.com",
-                ":method": "GET",
-                ":path": parsed_result.path + "?" + parsed_result.query,
-                ":scheme": "https",
-                "accept": "*/*",
-                "accept-encoding": "gzip,deflate,br",
-                "accept-language": "zh-CN,zh;q=0.9",
-                "origin": "https://pan.baidu.com",
-                "referer": "https://pan.baidu.com",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "cross-site",
-                "Cookie": cookie
-            }
-            sessions = requests.session()
-            sessions.mount('https://v1.baidupcs.com', HTTP20Adapter())
-            res = sessions.get(url=line, headers=headers, timeout=None)
-            print("status code:{status}".format(status = res.status_code))
-            if res.status_code == 200:
-                if not os.path.exists('input') :
-                    os.mkdir('input')
-                input_path = os.path.abspath('input')
-                # 写入list文件
-                with open(os.path.join(input_path, str(now)+"_list.txt"), 'a', encoding="utf-8") as code:
-                    code.write("file \'"+file_name+"\' \n")
-                with open(os.path.join(input_path, file_name), "wb") as code:
-                    code.write(res.content)
-            else:
-                print(res.content)
-
+            print(res.content)
+    clear_finis_file()
     ffmpeg_call(out_file_name, now)
 
+def clear_finis_file():
+    if os.path.exists("finish.txt"):
+        os.remove(os.path.abspath("finish.txt"))
+    if os.path.exists("soure_url_list.txt"):
+        os.remove(os.path.abspath("soure_url_list.txt"))
 
-def write_file_list(file_name):
-    print(os.path.abspath(file_name))
+#已下载列表
+def write_finish_file(soure_url):
+    with open("finish.txt", 'a', encoding="utf-8") as finish_file:
+        finish_file.write(soure_url)
+
+#ffmpeg 合并视频命令所需参数
+def write_file_list(file_name, now):
+    if not os.path.exists('input'):
+        os.mkdir('input')
+    input_path = os.path.abspath('input')
+    # 写入list文件
+    with open(os.path.join(input_path, str(now) + "_list.txt"), 'a', encoding="utf-8") as code:
+        code.write("file \'" + file_name + "\' \n")
+    return input_path
 
 
 def ffmpeg_call(out_file_name, now):
     input_path = os.path.abspath('input')
     os.chdir(input_path)
-    # cmd = "ffmpeg -f concat -safe 0 -i "+os.path.join(input_path, "list.txt")+" -c copy " + os.path.join(input_path, out_file_name)
     cmd = "ffmpeg -f concat -safe 0 -i "+str(now)+"_list.txt -c copy " + out_file_name
     print("合并 cmd :[{hcmd}]".format(hcmd=cmd))
     os.system(cmd)
     del_cmd = "del "+ os.path.join(input_path, "*_*.mp4")
-    # del_list_cmd = "del " + os.path.join(input_path, "list.txt")
     print("delete cmd :[{dele}]".format(dele=del_cmd))
-    # print("delete list cmd :[{del_list}]".format(del_list=del_list_cmd))
     # 删除视频分片, 视频列表文件
     os.system(del_cmd)
-    # os.system(del_list_cmd)
 
 def remove(string):
     pattern = re.compile(r'\s+')
