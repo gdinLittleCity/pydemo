@@ -67,7 +67,7 @@ def v_down(cookie, un_finish_dict):
             return
     now = int(time.time())
     for (line,line_num) in un_finish_dict.items():
-        print("行数:{num}, line:{line}".format(num=line_num, line=line))
+        print("行数:{num}".format(num=line_num))
         parsed_result = urlparse(line)
         out_file_name = remove(urllib.parse.unquote(urllib.parse.parse_qs(parsed_result.query).get('fn')[0]))
         file_name = out_file_name.replace(".", "_" + str(line_num) + ".")
@@ -94,13 +94,13 @@ def v_down(cookie, un_finish_dict):
         print("status code:{status}".format(status=res.status_code))
         if res.status_code == 200:
             write_finish_file(line)
-            input_path = write_file_list(file_name, now)
+            input_path = write_file_list(file_name, out_file_name)
             with open(os.path.join(input_path, file_name), "wb") as code:
                 code.write(res.content)
         else:
             print(res.content)
     clear_finis_file()
-    ffmpeg_call(out_file_name, now)
+    ffmpeg_call(out_file_name, out_file_name)
 
 def clear_finis_file():
     if os.path.exists("finish.txt"):
@@ -114,20 +114,20 @@ def write_finish_file(soure_url):
         finish_file.write(soure_url)
 
 #ffmpeg 合并视频命令所需参数
-def write_file_list(file_name, now):
+def write_file_list(file_name, out_file_name):
     if not os.path.exists('input'):
         os.mkdir('input')
     input_path = os.path.abspath('input')
     # 写入list文件
-    with open(os.path.join(input_path, str(now) + "_list.txt"), 'a', encoding="utf-8") as code:
+    with open(os.path.join(input_path, out_file_name.replace("、", "-") + "_list.txt"), 'a', encoding="utf-8") as code:
         code.write("file \'" + file_name + "\' \n")
     return input_path
 
 
-def ffmpeg_call(out_file_name, now):
+def ffmpeg_call(out_file_name, list_file):
     input_path = os.path.abspath('input')
     os.chdir(input_path)
-    cmd = "ffmpeg -f concat -safe 0 -i "+str(now)+"_list.txt -c copy " + out_file_name
+    cmd = "ffmpeg -f concat -safe 0 -i " + list_file.replace("、", "-") + "_list.txt -c copy " + out_file_name
     print("合并 cmd :[{hcmd}]".format(hcmd=cmd))
     os.system(cmd)
     del_cmd = "del "+ os.path.join(input_path, "*_*.mp4")
