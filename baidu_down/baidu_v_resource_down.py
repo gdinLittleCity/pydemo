@@ -42,7 +42,7 @@ def get_un_finish_dict():
     return un_finish_dict
 
 def m3u8_down(url, cookie):
-    cookies = "PSTM=1565077563; BIDUPSID=0891F37C2E76F2C004C27154D48C7BD8; pan_login_way=1; BAIDUID=000A294E42D801E8F1D8C7EE7642989A:SL=0:NR=10:FG=1; PANWEB=1; MCITY=-%3A; BDORZ=B490B5EBF6F3CD402E515D22BCDA1598; __yjs_duid=1_063f543b3f8f5fb2223ffa124f056c971609117862039; csrfToken=FIlno1UeBDZnRlED7atDgPnQ; Hm_lvt_7a3960b6f067eb0085b7f96ff5e660b0=1608636529,1608637685,1609203364,1609207287; BDUSS=3lIUEg2YXZtYjdWRW9QMnJZU21BeGR6em5Od3laZzhpM0w5N1g2WjdRSlNHeEpnSVFBQUFBJCQAAAAAAQAAAAEAAACO1b4vva3Ez9Chs8cwNTE1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFKO6l9SjupfZ; BDUSS_BFESS=3lIUEg2YXZtYjdWRW9QMnJZU21BeGR6em5Od3laZzhpM0w5N1g2WjdRSlNHeEpnSVFBQUFBJCQAAAAAAQAAAAEAAACO1b4vva3Ez9Chs8cwNTE1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFKO6l9SjupfZ; SCRC=cb2660f8b2eb14705f0bdf421179a346; STOKEN=6ab305af548b93681ac02324354ab9da932df08562b7e8bce2570abcecf05d34; BDCLND=Y8gUtVPquPHVWrNCBxUFpEdxTSftRB85vHvW68nkIos%3D; delPer=0; PSINO=6; BAIDUID_BFESS=000A294E42D801E8F1D8C7EE7642989A:SL=0:NR=10:FG=1; BDRCVFR[feWj1Vr5u3D]=I67x6TjHwwYf0; H_PS_PSSID=1449_33306_32974_33286_33351_33313_33312_33311_33310_33309_33308_33307_33372_33370; Hm_lpvt_7a3960b6f067eb0085b7f96ff5e660b0=1609296524; PANPSC=9624461332415161365%3AKkwrx6t0uHCtza0ZY%2Fm4hBUdqzE5qOrzN7dOlg4IbW2z9Le326YitQPZN16gvceAVaSXcDBdXtjPzW21GgvS0EpDgNqxv39mOe7mMiQIzh%2ByyezoC8D9eCHshfz3IZqPyIUHUDWcQM3ibxER0vwJhdHhJ5aZPptoX0r3JWTW68DiLaLUl0KD5CiPeEEq9nKY%2BBPsSDpTJNs%3D"
+    cookies = "BIDUPSID=1A56F2557178C0B93C8B245A63C005EB; PSTM=1573360340; MCITY=-50%3A; BAIDUID=DF40662B6F47217C43391149247B0E39:FG=1; PANWEB=1; pan_login_way=1; BDCLND=Y8gUtVPquPHVWrNCBxUFpEdxTSftRB85vHvW68nkIos%3D; BAIDUID_BFESS=DF40662B6F47217C43391149247B0E39:FG=1; gr_user_id=9dba539d-a876-4f88-9bbf-6f101c153ee8; BDORZ=B490B5EBF6F3CD402E515D22BCDA1598; BDUSS=0p0YXd6UH5tVVFZa0Q0ZExXSTRneW8zNk8zSHM4LUhSM2I1c0NIdjhjS0JxVFJnSVFBQUFBJCQAAAAAAQAAAAEAAACO1b4vva3Ez9Chs8cwNTE1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIEcDWCBHA1gb; BDUSS_BFESS=0p0YXd6UH5tVVFZa0Q0ZExXSTRneW8zNk8zSHM4LUhSM2I1c0NIdjhjS0JxVFJnSVFBQUFBJCQAAAAAAQAAAAEAAACO1b4vva3Ez9Chs8cwNTE1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIEcDWCBHA1gb; csrfToken=H2EqX-d0kp-zw0yH1wp97FbY; STOKEN=9f3c93962205846329776b1e6b8681251bcb84cd8b42a856757684f188566d8f; Hm_lvt_7a3960b6f067eb0085b7f96ff5e660b0=1609341031,1609353535,1610114123,1611471969; Hm_lpvt_7a3960b6f067eb0085b7f96ff5e660b0=1611472068; PANPSC=9909324822087810797%3AKkwrx6t0uHCtza0ZY%2Fm4hBUdqzE5qOrzN7dOlg4IbW2z9Le326YitQPZN16gvceAVaSXcDBdXtjPzW21GgvS0EpDgNqxv39mez%2F2gv74P8WyyezoC8D9eCHshfz3IZqPyIUHUDWcQM3ibxER0vwJhdHhJ5aZPptoX0r3JWTW68DiLaLUl0KD5CiPeEEq9nKY%2BBPsSDpTJNs%3D"
     un_finish_dict = get_un_finish_dict()
     if os.path.exists("soure_url_list.txt") and len(un_finish_dict)>0:
         v_down(cookies, un_finish_dict)
@@ -94,13 +94,13 @@ def v_down(cookie, un_finish_dict):
         print("status code:{status}".format(status=res.status_code))
         if res.status_code == 200:
             write_finish_file(line)
-            input_path = write_file_list(file_name, out_file_name)
+            input_path = write_file_list(file_name, out_file_name.replace("、","_"))
             with open(os.path.join(input_path, file_name), "wb") as code:
                 code.write(res.content)
         else:
             print(res.content)
     clear_finis_file()
-    ffmpeg_call(out_file_name, out_file_name)
+    ffmpeg_call(out_file_name, out_file_name.replace("、","_"))
 
 def clear_finis_file():
     if os.path.exists("finish.txt"):
@@ -114,20 +114,20 @@ def write_finish_file(soure_url):
         finish_file.write(soure_url)
 
 #ffmpeg 合并视频命令所需参数
-def write_file_list(file_name, out_file_name):
+def write_file_list(file_name, list_file_name):
     if not os.path.exists('input'):
         os.mkdir('input')
     input_path = os.path.abspath('input')
     # 写入list文件
-    with open(os.path.join(input_path, out_file_name.replace("、", "-") + "_list.txt"), 'a', encoding="utf-8") as code:
+    with open(os.path.join(input_path, list_file_name + "_list.txt"), 'a', encoding="utf-8") as code:
         code.write("file \'" + file_name + "\' \n")
     return input_path
 
 
-def ffmpeg_call(out_file_name, list_file):
+def ffmpeg_call(out_file_name, list_file_name):
     input_path = os.path.abspath('input')
     os.chdir(input_path)
-    cmd = "ffmpeg -f concat -safe 0 -i " + list_file.replace("、", "-") + "_list.txt -c copy " + out_file_name
+    cmd = "ffmpeg -f concat -safe 0 -i "+list_file_name+"_list.txt -c copy " + out_file_name
     print("合并 cmd :[{hcmd}]".format(hcmd=cmd))
     os.system(cmd)
     del_cmd = "del "+ os.path.join(input_path, "*_*.mp4")
