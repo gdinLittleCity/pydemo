@@ -4,7 +4,6 @@ from hyper.contrib import HTTP20Adapter
 import requests
 from urllib.parse import urlparse
 import urllib
-import os
 import json
 
 
@@ -15,7 +14,6 @@ def get_cum():
     for i in range(7):
         random_index = random.randint(0, 35)
         result_str = result_str + range_char.__getitem__(random_index)
-    # print("cum:{cum}".format(cum=result_str))
     return result_str
 
 
