@@ -127,22 +127,26 @@ def before_comment(weibo, pos, page):
 
 def get_comments(item_id, mid, cmt_count):
     storege = {'name': '', 'content': '', 'reposts_count': 0, 'comments_count': 0, 'attitudes_count': 0, 'comments': []}
-    comments = []
     cum = get_cum()
     host = 'https://api.weibo.cn'
     # 总评论数
     cmt_count = cmt_count
     # 单页数据量
     count = (int(cmt_count / 10) + 1) * 10
-
-    path = get_cmt_query_url(item_id, mid, cum, count)
+    path = get_cmt_query_url(item_id, mid, cum, count, False, 0, '')
     headers = get_header(path)
     path_url = host + path
     sessions = requests.session()
     sessions.mount(host, HTTP20Adapter())
     res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
     res_json_obj = json.loads(res.content)
-    cmt_list = []
+    # 转发数, 评论数, 点赞数, 作者, 内容
+    build_weibo_count(res_json_obj, storege)
+    # 评论
+    storege['comments'].extend(parse_cmt_res(res_json_obj, item_id, mid, cum, count))
+    return storege
+
+def build_weibo_count(res_json_obj, storege):
     if 'status' in res_json_obj:
         weibo_content = res_json_obj['status']
         # 转发数
@@ -158,52 +162,81 @@ def get_comments(item_id, mid, cmt_count):
             storege['name'] = weibo_content['user']['name']
         if 'text' in weibo_content:
             storege['content'] = weibo_content['text']
+
+def parse_cmt_res(res_json_obj, item_id, mid, count):
+    comments = []
+    cmt_list = []
     if 'datas' in res_json_obj:
         cmt_list = res_json_obj['datas']
     if 'root_comments' in res_json_obj:
         cmt_list = res_json_obj['root_comments']
     if len(cmt_list) == 0:
         print('无评论{data}'.format(data=str(cmt_list)))
-        return storege
+        return comments
     for cmt in cmt_list:
         comment = {'user': '', 'text': '', 'cmts': []}
         if 'type' in cmt and cmt['type'] != 0:
             print('无正常评论:{data}'.format(data=str(cmt)))
             continue
+        # datas 结构评论
         if 'type' in cmt:
-            # 无嵌套
             one = cmt['data']
             cmt_text = one['text']
             cmt_user = one['user']['name']
             comment['user'] = cmt_user
             comment['text'] = cmt_text
+            comment['cmts'] = cycle_cmt(one)
+        # root_comments 结构评论
         else:
             cmt_text = cmt['text']
             cmt_user = cmt['user']['name']
             comment['user'] = cmt_user
             comment['text'] = cmt_text
-
-            if 'comments' in cmt and len(cmt['comments']) > 0:
-                for cmt_com in cmt['comments']:
-                    com = {'user':'', 'text':''}
-                    cmt_com_text = cmt_com['text']
-                    cmt_com_user = cmt_com['user']['name']
-                    com['user'] = cmt_com_user
-                    com['text'] = cmt_com_text
-                    comment['cmts'].append(com)
+            comment['cmts'] = cycle_cmt(cmt)
 
         comments.append(comment)
         print('评论:{cmt_content}'.format(cmt_content=str(comment)))
-    storege['comments'].append(comments)
-    return storege
+    # 分页评论
+    if ('max_id' in res_json_obj and res_json_obj['max_id'] != 0 ) or ('top_hot_structs' in res_json_obj and any(res_json_obj['max_id'])) :
+        print('分页评论:')
+        cum = get_cum()
+        host = 'https://api.weibo.cn'
+        path = get_cmt_query_url(item_id, mid, cum, count, False, res_json_obj['max_id'], '')
+        headers = get_header(path)
+        path_url = host + path
+        sessions = requests.session()
+        sessions.mount(host, HTTP20Adapter())
+        res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
+        res_json_obj_page = json.loads(res.content)
+        comments.extend(parse_cmt_res(res_json_obj_page, item_id, mid, count))
 
+    return comments
 
-def get_cmt_query_url(item_id, mid, cum, count):
-    query = '/2/comments/build_comments?networktype=wifi&sensors_device_id=none&is_mix=1&max_id=0&recommend_page=1&' \
+def cycle_cmt(cmt):
+    cmt_list = []
+    if 'comments' in cmt and len(cmt['comments']) > 0:
+        for cmt_com in cmt['comments']:
+            com = {'user': '', 'text': ''}
+            cmt_com_text = cmt_com['text']
+            cmt_com_user = cmt_com['user']['name']
+            com['user'] = cmt_com_user
+            com['text'] = cmt_com_text
+            cmt_list.append(com)
+
+def get_cmt_query_url(item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
+    max_id_param_str = 'max_id=0&recommend_page=1&'
+    is_reload_str = 'is_reload=1&'
+    refresh_type_str = 'refresh_type=1&'
+    callback_ext_params_str = ''
+    if is_page :
+        max_id_param_str = 'max_id=' + str(max_id) + '&'
+        callback_ext_params_str = str(callback_ext_params) + '&'
+
+    query = '/2/comments/build_comments?networktype=wifi&sensors_device_id=none&is_mix=1&{max_id_param_str}' \
             'orifid=231619%24%24100303type%3D1%26t%3D3%24%24100103type%3D1%26q%3D%23%E7%8E%AF%E5%A2%83%E4%BF%9D%E6%8A%A4%23%26t%3D2&' \
             'is_show_bulletin=2&uicode=10000002&moduleID=700&' \
-            '&trim_user=0&is_reload=1&featurecode=10000085&wb_version=4033&is_encoded=0&' \
-            'refresh_type=1&' \
+            '&trim_user=0&{is_reload_str}featurecode=10000085&wb_version=4033&is_encoded=0&' \
+            '{refresh_type_str}' \
             'lcardid={lcardid}' \
             '&c=android&s=6d256569&ft=0&id={mid}&ua=Netease-MuMu__weibo__9.8.4__android__android6.0.1&wm=2468_1001&' \
             'aid=01A-rd9_CYQtWAm4wSiN4kbxspdxQZKn1D79d7GvCc5JkZIU0.&' \
@@ -212,8 +245,13 @@ def get_cmt_query_url(item_id, mid, cum, count):
             'v_f=2&v_p=76&from=1098495010&gsid=_2AkMXSotJf8NhqwJRmvgWzWnhZYh_zw7EieKhFnqSJRM3HRl-wT9kqhZctRV6PMh-AW9WGnZqcenZXS6030dwUBzB0iTD&lang=zh_CN&' \
             'lfid=100103type%3D1%26q%3D%23%E7%8E%AF%E5%A2%83%E4%BF%9D%E6%8A%A4%23%26t%3D2&skin=default&count={count}&oldwm=2468_1001&sflag=1&' \
             'oriuicode=10000512_10000003_10000003&ignore_inturrpted_error=true&luicode=10000003&sensors_mark=0&android_id=9417726336afd1fa&' \
-            'fetch_level=0&is_append_blogs=1&request_type=default&max_id_type=0&sensors_is_first_day=none' \
-            '&cum={cum}'.format(lcardid=item_id, mid=mid, ext=item_id, count=count, cum=cum)
+            'fetch_level=0&is_append_blogs=1&{callback_ext_params_str}request_type=default&max_id_type=0&sensors_is_first_day=none' \
+            '&cum={cum}'.format(max_id_param_str=max_id_param_str,is_reload_str = is_reload_str,
+                                refresh_type_str=refresh_type_str,
+                                lcardid=item_id,
+                                mid=mid, ext=item_id, count=count,
+                                callback_ext_params_str=callback_ext_params_str,
+                                cum=cum)
     return query
 
 
