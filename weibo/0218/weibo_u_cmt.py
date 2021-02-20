@@ -1,5 +1,6 @@
 # encoding=utf-8
 import random
+import time
 from hyper.contrib import HTTP20Adapter
 import requests
 from urllib.parse import urlparse
@@ -16,23 +17,36 @@ def get_cum():
         result_str = result_str + range_char.__getitem__(random_index)
     return result_str
 
+def get_author(profile_uid: str):
+    # 1854869497 - 奥林匹克运动会
+    # 1819318401 - 央视网体育
+    # 2993049293 - 央视体育
+    # 5980037952 - 北京2022冬奥会
+    # 5867893415 - ISU国际滑联
+    # 1805036724 - 资生堂中国杯花样滑冰大奖赛
+    author_dict = {'1854869497': '奥林匹克运动会', '1819318401': '央视网体育', '2993049293': '央视体育',
+                   '5980037952': '北京2022冬奥会', '5867893415': 'ISU国际滑联', '1805036724': '资生堂中国杯花样滑冰大奖赛'}
+    return author_dict[profile_uid]
+
+
 #获取博主相关话题微博
-def get_all_topic(topic, uid):
+def get_all_topic(topic, profile_uid):
+    topic_url_encode = urllib.parse.quote(topic)
     cum = get_cum()
     host = 'https://api.weibo.cn'
-    total_query_url = get_query_url(topic, uid, 1, cum)
+    total_query_url = get_query_url(topic_url_encode, profile_uid, 1, cum)
     path = "/2/searchall?" + total_query_url
     total = get_total(host + path, get_header(path))
-    print('topic:{topic}, 微博总数total:{total}'.format(topic=topic, total=str(total)))
+    print('博主:{author}, 关键词:{topic}, 微博总数:{total}'.format(author=get_author(profile_uid), topic=topic, total=str(total)))
     if total == 0:
-        print('topic:{topic} 无微博'.format(topic=topic))
+        print('博主:{author}, 关键词:{topic} 无微博'.format(author=get_author(profile_uid), topic=topic))
+        # with open("weibo-{topic}-{author}.txt".format(topic=topic, author=get_author(profile_uid)), 'a', encoding="utf-8") as finish_file:
+        #     finish_file.write("\r\n")
         return
-    total_page = int(total/10) + 1
+    total_page = int(total/10) + 2
     pos = 0
-    for page in range(total_page):
-        if page == 0:
-            page = page + 1
-        query_str_url = get_query_url(topic, uid, page, cum)
+    for page in range(1, total_page):  # 从第一页开始
+        query_str_url = get_query_url(topic_url_encode, profile_uid, page, cum)
         headers = get_header("/2/searchall?" +query_str_url)
 
         path_url = host + "/2/searchall" + "?" + query_str_url
@@ -45,25 +59,25 @@ def get_all_topic(topic, uid):
         weibos = res_json_obj['cards']
         for weibo in weibos:
             card_type = weibo['card_type']
-            pos = pos + 1
             # 普通微博card
             if card_type == 9:
+                pos = pos + 1
                 print('第{pos}条微博,card_type:9'.format(pos=pos))
-                before_comment(weibo, pos, page)
+                before_comment(weibo, pos, page, profile_uid, topic_url_encode)
             # 微博card list 更多热门微博、更多热门视频、实时微博、相关话题
             if card_type == 11:
-                print('第{pos}条微博,card_type:11 - 拆分'.format(pos=pos))
+                print('第{pos}页微博,card_type:11 - 拆分'.format(pos=page))
                 if 'card_group' in weibo:
                     card_group = weibo['card_group']
                     for card in card_group:
                         if card['card_type'] == 9:
                             print('-------第{pos}条微博,实际使用card_type:9'.format(pos=pos))
                             pos = pos + 1
-                            before_comment(card, pos, page)
+                            before_comment(card, pos, page, profile_uid, topic_url_encode)
             # 其他微博card不处理
 
 
-def get_query_url(topic, uid, page, cum):
+def get_query_url(topic, profile_uid, page, cum):
     query_url = 'networktype=wifi&extparam=phototab_style%3Dtrue&sensors_device_id=none' \
                 '&orifid=231093_-_selffollowed%24%24231093_-_selfgroup_-_mygroup' \
                 '&uicode=10000003&moduleID=708&featurecode=10000085' \
@@ -76,14 +90,14 @@ def get_query_url(topic, uid, page, cum):
                 '&uid=7005540054&v_f=2&v_p=76&from=1098495010' \
                 '&gsid=_2A25NKnwlDeRxGeFO61cU9C7MzjiIHXVsfojtrDV6PUJbkdAfLUH8kWpNQYVgzRCqgpg57i5Y5mk_6NWKzvsMzCqQ' \
                 '&imsi=&lang=zh_CN&' \
-                'lfid=230283{uid}&' \
+                'lfid=230283{profile_uid}&' \
                 'page={page}&skin=default&count=10&oldwm=2468_1001&sflag=1&oriuicode=10000011_10000011' \
                 '&containerid=100303type%3D401%26q%3D{topic}%26t%3D0' \
                 '&ignore_inturrpted_error=true&luicode=10000198&sensors_mark=0&android_id=9417726336afd1fa' \
                 '&client_key=8941330ed508132eb3da9328a81bd520&need_new_pop=1&sensors_is_first_day=none' \
-                '&container_ext=newhistory%3A0%7Cnettype%3Awifi%7Cprofile_uid%3A{uid}%7Cshow_topic%3A1%7Cgps_timestamp%3A1613633977964' \
+                '&container_ext=newhistory%3A0%7Cnettype%3Awifi%7Cprofile_uid%3A{profile_uid}%7Cshow_topic%3A1%7Cgps_timestamp%3A{data_time_stamp}' \
                 '&need_head_cards=1' \
-                '&cum={cum}'.format(topic=topic, uid=uid, page=page, cum=cum)
+                '&cum={cum}'.format(topic=topic, profile_uid=profile_uid, page=page, data_time_stamp=int(time.time()), cum=cum)
     return query_url
 
 
@@ -112,28 +126,35 @@ def get_total(url, headers):
     return total
 
 
-def before_comment(weibo, pos, page):
+def before_comment(weibo, pos, page, profile_uid, topic):
+    create_at = weibo['mblog']['created_at']
+    weibo_year = get_weibo_create_year(create_at)
+    if int(weibo_year) < 2013:
+        print('skip.发布时间在2013年之后,发布时间:{create},微博:{content}'.format(create=create_at, content=str(weibo['mblog']['text'])))
+        return
     item_id = weibo['itemid']
     mid = weibo['mblog']['mid']
     # 评论数
     cmt_count = weibo['mblog']['comments_count']
-    print('第{page}页,第{pos}条微博,平均数:{cmt_count},内容:{content}'.format(page=page, pos=pos, cmt_count=cmt_count, content=str(weibo['mblog']['text'])))
+    print('第{page}页,第{pos}条微博,发布时间:{year},评论数:{cmt_count},内容:{content}'.format(page=page, pos=pos, year=create_at, cmt_count=cmt_count, content=str(weibo['mblog']['text'])))
     # 评论
-    if len(item_id) != 0 and cmt_count > 0:
-        storege = get_comments(urllib.parse.quote(item_id), mid, cmt_count)
-        with open("weibo.txt", 'a', encoding="utf-8") as finish_file:
+    if len(item_id) != 0:
+        storege = get_comments(urllib.parse.quote(item_id), mid, cmt_count, topic)
+        with open("weibo-{topic}-{author}.txt".format(topic=urllib.parse.unquote(topic), author=get_author(profile_uid)), 'a', encoding="utf-8") as finish_file:
             finish_file.write(str(storege) + "\r\n")
 
+def get_weibo_create_year(gmt_time_str:str): # 获取微博发布时间-年份
+    return gmt_time_str[len(gmt_time_str)-4: len(gmt_time_str)]
 
-def get_comments(item_id, mid, cmt_count):
-    storege = {'name': '', 'content': '', 'reposts_count': 0, 'comments_count': 0, 'attitudes_count': 0, 'comments': []}
+def get_comments(item_id, mid, cmt_count, topic):
+    storege = {'name': '', 'content': '', 'create':'', 'reposts_count': 0, 'comments_count': 0, 'attitudes_count': 0, 'comments': []}
     cum = get_cum()
     host = 'https://api.weibo.cn'
     # 总评论数
     cmt_count = cmt_count
     # 单页数据量
     count = (int(cmt_count / 10) + 1) * 10
-    path = get_cmt_query_url(item_id, mid, cum, count, False, 0, '')
+    path = get_cmt_query_url(topic, item_id, mid, cum, count, False, 0, '')
     headers = get_header(path)
     path_url = host + path
     sessions = requests.session()
@@ -143,12 +164,14 @@ def get_comments(item_id, mid, cmt_count):
     # 转发数, 评论数, 点赞数, 作者, 内容
     build_weibo_count(res_json_obj, storege)
     # 评论
-    storege['comments'].extend(parse_cmt_res(res_json_obj, item_id, mid, cum, count))
+    storege['comments'].extend(parse_cmt_res(topic, res_json_obj, item_id, mid, count))
     return storege
 
 def build_weibo_count(res_json_obj, storege):
     if 'status' in res_json_obj:
         weibo_content = res_json_obj['status']
+        if 'created_at' in weibo_content:
+            storege['create'] = get_weibo_create_year(weibo_content['created_at'])
         # 转发数
         if 'reposts_count' in weibo_content:
             storege['reposts_count'] = weibo_content['reposts_count']
@@ -163,7 +186,7 @@ def build_weibo_count(res_json_obj, storege):
         if 'text' in weibo_content:
             storege['content'] = weibo_content['text']
 
-def parse_cmt_res(res_json_obj, item_id, mid, count):
+def parse_cmt_res(topic, res_json_obj, item_id, mid, count):
     comments = []
     cmt_list = []
     if 'datas' in res_json_obj:
@@ -197,18 +220,22 @@ def parse_cmt_res(res_json_obj, item_id, mid, count):
         comments.append(comment)
         print('评论:{cmt_content}'.format(cmt_content=str(comment)))
     # 分页评论
-    if ('max_id' in res_json_obj and res_json_obj['max_id'] != 0 ) or ('top_hot_structs' in res_json_obj and any(res_json_obj['max_id'])) :
+    if ('max_id' in res_json_obj and res_json_obj['max_id'] != 0) or ('top_hot_structs' in res_json_obj and any(res_json_obj['top_hot_structs'])):
         print('分页评论:')
         cum = get_cum()
         host = 'https://api.weibo.cn'
-        path = get_cmt_query_url(item_id, mid, cum, count, False, res_json_obj['max_id'], '')
+        path = get_cmt_query_url(topic, item_id, mid, cum, count, True, res_json_obj['max_id'], '')
+        if 'top_hot_structs' in res_json_obj and any(res_json_obj['top_hot_structs']):
+            top_hot_structs = res_json_obj['top_hot_structs']
+            path = get_cmt_query_url(topic, item_id, mid, cum, count, True, top_hot_structs['call_back_struct']['max_id_str'], top_hot_structs['call_back_struct']['callback_ext_params'])
+
         headers = get_header(path)
         path_url = host + path
         sessions = requests.session()
         sessions.mount(host, HTTP20Adapter())
         res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
         res_json_obj_page = json.loads(res.content)
-        comments.extend(parse_cmt_res(res_json_obj_page, item_id, mid, count))
+        comments.extend(parse_cmt_res(topic, res_json_obj_page, item_id, mid, count))
 
     return comments
 
@@ -222,8 +249,10 @@ def cycle_cmt(cmt):
             com['user'] = cmt_com_user
             com['text'] = cmt_com_text
             cmt_list.append(com)
+    return cmt_list
 
-def get_cmt_query_url(item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
+
+def get_cmt_query_url(topic, item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
     max_id_param_str = 'max_id=0&recommend_page=1&'
     is_reload_str = 'is_reload=1&'
     refresh_type_str = 'refresh_type=1&'
@@ -231,31 +260,69 @@ def get_cmt_query_url(item_id, mid, cum, count, is_page ,max_id, callback_ext_pa
     if is_page :
         max_id_param_str = 'max_id=' + str(max_id) + '&'
         callback_ext_params_str = str(callback_ext_params) + '&'
-
+    orifid = '231093_-_selffollowed$$231093_-_selfgroup_-_mygroup$$231093_-_selfgroupfollow_-_4605965338415552$$2302831854869497$$100303type=401&q={topic}&t=0'.format(
+        topic = topic
+    )
+            # 'orifid={orifid}&' \
+            # 'lcardid={lcardid}' \
+            # 'ext=orifid%3A{orifid}{ext}&' \
     query = '/2/comments/build_comments?networktype=wifi&sensors_device_id=none&is_mix=1&{max_id_param_str}' \
-            'orifid=231619%24%24100303type%3D1%26t%3D3%24%24100103type%3D1%26q%3D%23%E7%8E%AF%E5%A2%83%E4%BF%9D%E6%8A%A4%23%26t%3D2&' \
             'is_show_bulletin=2&uicode=10000002&moduleID=700&' \
             '&trim_user=0&{is_reload_str}featurecode=10000085&wb_version=4033&is_encoded=0&' \
             '{refresh_type_str}' \
-            'lcardid={lcardid}' \
-            '&c=android&s=6d256569&ft=0&id={mid}&ua=Netease-MuMu__weibo__9.8.4__android__android6.0.1&wm=2468_1001&' \
-            'aid=01A-rd9_CYQtWAm4wSiN4kbxspdxQZKn1D79d7GvCc5JkZIU0.&' \
-            'did=ea134f63d2ebc546eff496ea78bbcb88e18b0cba&' \
-            'ext=orifid%3A231619%24%24100303type%3D1%26t%3D3%24%24100103type%3D1%26q%3D%23%E7%8E%AF%E5%A2%83%E4%BF%9D%E6%8A%A4%23%26t%3D2%7Coriuicode%3A10000512_10000003_10000003%7C{ext}&' \
-            'v_f=2&v_p=76&from=1098495010&gsid=_2AkMXSotJf8NhqwJRmvgWzWnhZYh_zw7EieKhFnqSJRM3HRl-wT9kqhZctRV6PMh-AW9WGnZqcenZXS6030dwUBzB0iTD&lang=zh_CN&' \
-            'lfid=100103type%3D1%26q%3D%23%E7%8E%AF%E5%A2%83%E4%BF%9D%E6%8A%A4%23%26t%3D2&skin=default&count={count}&oldwm=2468_1001&sflag=1&' \
-            'oriuicode=10000512_10000003_10000003&ignore_inturrpted_error=true&luicode=10000003&sensors_mark=0&android_id=9417726336afd1fa&' \
+            '&c=android&s=08d12f15&ft=0&id={mid}&ua=Netease-MuMu__weibo__9.8.4__android__android6.0.1&wm=2468_1001&' \
+            'aid=01A212u2E42R0FrTeYaODL9JPnzYBnf7yILsgPn4bkjDmlbKc.&' \
+            'v_f=2&v_p=76&from=1098495010&gsid=_2A25NKxlMDeRxGeFO61cU9C7MzjiIHXVsYSuErDV6PUJbkdAKLXXukWpNQYVgzV_sm-sh-eWyo4KFeIQPmDlilkmt&lang=zh_CN&' \
+            'lfid=100103type%3D1%26q%3D{topic}t%3D2&skin=default&count={count}&oldwm=2468_1001&sflag=1&' \
+            'oriuicode=10000011_10000011_10000011_10000198_10000003&' \
+            'ignore_inturrpted_error=true&luicode=10000003&sensors_mark=0&android_id=82207eba77e0887a&' \
             'fetch_level=0&is_append_blogs=1&{callback_ext_params_str}request_type=default&max_id_type=0&sensors_is_first_day=none' \
             '&cum={cum}'.format(max_id_param_str=max_id_param_str,is_reload_str = is_reload_str,
+                                orifid=urllib.parse.quote(orifid),
                                 refresh_type_str=refresh_type_str,
-                                lcardid=item_id,
-                                mid=mid, ext=item_id, count=count,
+                                topic=urllib.parse.quote(topic),
+                                mid=mid, count=count,
                                 callback_ext_params_str=callback_ext_params_str,
                                 cum=cum)
     return query
 
 
-# print(get_query_url(urllib.parse.quote('#花样滑冰'),'1819318401', 1 , get_cum()))
-# 1819318401 - 央视网体育
+if __name__ == '__main__':
+    # 1854869497 - 奥林匹克运动会
+    # 1819318401 - 央视网体育
+    # 2993049293 - 央视体育
+    # 5980037952 - 北京2022冬奥会
+    # 5867893415 - ISU国际滑联
+    # 1805036724 - 资生堂中国杯花样滑冰大奖赛
+    # #花样滑冰 #花滑 #冬奥会
+    # print(get_author('1854869497'))
 
-get_all_topic(urllib.parse.quote('#冬奥会'), '1819318401')
+    #奥林匹克运动会
+    # get_all_topic('#花样滑冰', '1854869497')
+    # get_all_topic('#花滑', '1854869497')
+    # get_all_topic('#冬奥会', '1854869497')
+
+    #央视网体育
+    # get_all_topic('#花样滑冰', '1819318401')
+    # get_all_topic('#花滑', '1819318401')
+    # get_all_topic('#冬奥会', '1819318401')
+
+    #央视体育
+    # get_all_topic('#花样滑冰', '2993049293')
+    # get_all_topic('#花滑', '2993049293')
+    # get_all_topic('#冬奥会', '2993049293')
+
+    #北京2022冬奥会
+    # get_all_topic('#花样滑冰', '5980037952')
+    # get_all_topic('#花滑', '5980037952')
+    # get_all_topic('#冬奥会', '5980037952')
+
+    #ISU国际滑联
+    # get_all_topic('#花样滑冰', '5867893415')
+    # get_all_topic('#花滑', '5867893415')
+    # get_all_topic('#冬奥会', '5867893415')
+    #
+    # #资生堂中国杯花样滑冰大奖赛
+    get_all_topic('#花样滑冰', '1805036724')
+    get_all_topic('#花滑', '1805036724')
+    get_all_topic('#冬奥会', '1805036724')
