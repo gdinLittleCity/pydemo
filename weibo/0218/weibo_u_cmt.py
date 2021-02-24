@@ -1,4 +1,5 @@
 # encoding=utf-8
+import threading
 import random
 import time
 from hyper.contrib import HTTP20Adapter
@@ -72,8 +73,8 @@ def get_all_topic(topic, profile_uid):
                     for card in card_group:
                         if card['card_type'] == 9:
                             print('-------第{pos}条微博,实际使用card_type:9'.format(pos=pos))
-                            pos = pos + 1
                             before_comment(card, pos, page, profile_uid, topic_url_encode)
+                            pos = pos + 1
             # 其他微博card不处理
 
 
@@ -139,32 +140,38 @@ def before_comment(weibo, pos, page, profile_uid, topic):
     print('第{page}页,第{pos}条微博,发布时间:{year},评论数:{cmt_count},内容:{content}'.format(page=page, pos=pos, year=create_at, cmt_count=cmt_count, content=str(weibo['mblog']['text'])))
     # 评论
     if len(item_id) != 0:
-        storege = get_comments(urllib.parse.quote(item_id), mid, cmt_count, topic)
+        storege = get_comments(weibo, urllib.parse.quote(item_id), mid, cmt_count, topic)
         with open("weibo-{topic}-{author}.txt".format(topic=urllib.parse.unquote(topic), author=get_author(profile_uid)), 'a', encoding="utf-8") as finish_file:
             finish_file.write(str(storege) + "\r\n")
 
 def get_weibo_create_year(gmt_time_str:str): # 获取微博发布时间-年份
     return gmt_time_str[len(gmt_time_str)-4: len(gmt_time_str)]
 
-def get_comments(item_id, mid, cmt_count, topic):
+def get_comments(weibo, item_id, mid, cmt_count, topic):
     storege = {'name': '', 'content': '', 'create':'', 'reposts_count': 0, 'comments_count': 0, 'attitudes_count': 0, 'comments': []}
     cum = get_cum()
+    create_at = weibo['mblog']['created_at']
+    weibo_year = get_weibo_create_year(create_at)
+
     host = 'https://api.weibo.cn'
     # 总评论数
     cmt_count = cmt_count
     # 单页数据量
     count = (int(cmt_count / 10) + 1) * 10
-    path = get_cmt_query_url(topic, item_id, mid, cum, count, False, 0, '')
+    path = get_cmt_query_url(weibo_year, topic, item_id, mid, cum, count, False, 0, '')
     headers = get_header(path)
     path_url = host + path
     sessions = requests.session()
     sessions.mount(host, HTTP20Adapter())
     res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
-    res_json_obj = json.loads(res.content)
-    # 转发数, 评论数, 点赞数, 作者, 内容
-    build_weibo_count(res_json_obj, storege)
-    # 评论
-    storege['comments'].extend(parse_cmt_res(topic, res_json_obj, item_id, mid, count))
+    try:
+        res_json_obj = json.loads(res.content)
+        # 转发数, 评论数, 点赞数, 作者, 内容
+        build_weibo_count(res_json_obj, storege)
+        # 评论
+        storege['comments'].extend(parse_cmt_res(weibo_year, topic, res_json_obj, item_id, mid, count))
+    except:
+        print(str(topic) + ":" + str(item_id) + "评论 解析异常")
     return storege
 
 def build_weibo_count(res_json_obj, storege):
@@ -186,18 +193,21 @@ def build_weibo_count(res_json_obj, storege):
         if 'text' in weibo_content:
             storege['content'] = weibo_content['text']
 
-def parse_cmt_res(topic, res_json_obj, item_id, mid, count):
+def parse_cmt_res(weibo_year, topic, res_json_obj, item_id, mid, count):
     comments = []
     cmt_list = []
     if 'datas' in res_json_obj:
         cmt_list = res_json_obj['datas']
     if 'root_comments' in res_json_obj:
         cmt_list = res_json_obj['root_comments']
+    if 'comments' in res_json_obj:
+        cmt_list = res_json_obj['comments']
     if len(cmt_list) == 0:
         print('无评论{data}'.format(data=str(cmt_list)))
         return comments
     for cmt in cmt_list:
         comment = {'user': '', 'text': '', 'cmts': []}
+        # datas 结构中 type!=0 的数据为无效评论数据
         if 'type' in cmt and cmt['type'] != 0:
             print('无正常评论:{data}'.format(data=str(cmt)))
             continue
@@ -224,18 +234,22 @@ def parse_cmt_res(topic, res_json_obj, item_id, mid, count):
         print('分页评论:')
         cum = get_cum()
         host = 'https://api.weibo.cn'
-        path = get_cmt_query_url(topic, item_id, mid, cum, count, True, res_json_obj['max_id'], '')
+        path = get_cmt_query_url(weibo_year, topic, item_id, mid, cum, count, True, res_json_obj['max_id'], '')
         if 'top_hot_structs' in res_json_obj and any(res_json_obj['top_hot_structs']):
             top_hot_structs = res_json_obj['top_hot_structs']
-            path = get_cmt_query_url(topic, item_id, mid, cum, count, True, top_hot_structs['call_back_struct']['max_id_str'], top_hot_structs['call_back_struct']['callback_ext_params'])
+            path = get_cmt_query_url(weibo_year, topic, item_id, mid, cum, count, True, top_hot_structs['call_back_struct']['max_id_str'], top_hot_structs['call_back_struct']['callback_ext_params'])
 
         headers = get_header(path)
         path_url = host + path
         sessions = requests.session()
         sessions.mount(host, HTTP20Adapter())
         res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
-        res_json_obj_page = json.loads(res.content)
-        comments.extend(parse_cmt_res(topic, res_json_obj_page, item_id, mid, count))
+        try:
+            res_json_obj_page = json.loads(res.content)
+            comments.extend(parse_cmt_res(weibo_year, topic, res_json_obj_page, item_id, mid, count))
+        except:
+            print(str(topic)+":"+str(item_id)+"评论 解析异常")
+
 
     return comments
 
@@ -252,7 +266,19 @@ def cycle_cmt(cmt):
     return cmt_list
 
 
-def get_cmt_query_url(topic, item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
+def get_cmt_query_url(weibo_year, topic, item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
+    if int(weibo_year) <= 2014:
+        query = '/2/comments/show?networktype=wifi&with_common_cmt_new=1&sensors_device_id=none&' \
+                'uicode=10000002&moduleID=710&featurecode=10000085&wb_version=4033&refresh_type=1&' \
+                'c=android&s=08d12f15&ft=0&id={mid}&ua=Netease-MuMu__weibo__9.8.4__android__android6.0.1&wm=2468_1001&' \
+                'aid=01A212u2E42R0FrTeYaODL9JPnzYBnf7yILsgPn4bkjDmlbKc.&' \
+                'v_f=2&v_p=76&from=1098495010&gsid=_2A25NMKqQDeRxGeFO61cU9C7MzjiIHXVsZ7lYrDV6PUJbkdAKLXXukWpNQYVgzR0yCXF77ZLyofHA7hQXU1lNEU_f&lang=zh_CN' \
+                '&lfid=100303type%3D401%26q%3D{topic}t%3D0&page=1&skin=default&uuid=&count={count}&oldwm=2468_1001&sflag=1&related_user=0&oriuicode=10000011_10000011_10000198_10000003' \
+                '&need_hot_comments=1&luicode=10000003&sensors_mark=0&android_id=82207eba77e0887a&filter_by_author=0' \
+                '&sensors_is_first_day=none&cum={cum}'.format(mid=mid, topic=urllib.parse.quote(topic), count=count, cum=cum)
+
+        return query
+
     max_id_param_str = 'max_id=0&recommend_page=1&'
     is_reload_str = 'is_reload=1&'
     refresh_type_str = 'refresh_type=1&'
@@ -298,31 +324,45 @@ if __name__ == '__main__':
     # print(get_author('1854869497'))
 
     #奥林匹克运动会
-    # get_all_topic('#花样滑冰', '1854869497')
-    # get_all_topic('#花滑', '1854869497')
-    # get_all_topic('#冬奥会', '1854869497')
+    # get_all_topic('花样滑冰', '1854869497')
+    # get_all_topic('花滑', '1854869497')
+    # get_all_topic('冬奥会', '1854869497')
 
     #央视网体育
-    # get_all_topic('#花样滑冰', '1819318401')
-    # get_all_topic('#花滑', '1819318401')
-    # get_all_topic('#冬奥会', '1819318401')
+    # get_all_topic('花样滑冰', '1819318401')
+    # get_all_topic('花滑', '1819318401')
+    # get_all_topic('冬奥会', '1819318401')
 
     #央视体育
-    # get_all_topic('#花样滑冰', '2993049293')
-    # get_all_topic('#花滑', '2993049293')
-    # get_all_topic('#冬奥会', '2993049293')
+    # get_all_topic('花样滑冰', '2993049293')
+    # get_all_topic('花滑', '2993049293')
+    # get_all_topic('冬奥会', '2993049293')
 
     #北京2022冬奥会
-    # get_all_topic('#花样滑冰', '5980037952')
-    # get_all_topic('#花滑', '5980037952')
-    # get_all_topic('#冬奥会', '5980037952')
+    # threds = []
+    # threds.append(threading.Thread(target=get_all_topic, args=('花样滑冰', '5980037952')))
+    # threds.append(threading.Thread(target=get_all_topic, args=('花滑', '5980037952')))
+    # threds.append(threading.Thread(target=get_all_topic, args=('冬奥会', '5980037952')))
+    # get_all_topic('花样滑冰', '5980037952')
+    # get_all_topic('花滑', '5980037952')
+    # get_all_topic('冬奥会', '5980037952')
 
     #ISU国际滑联
-    # get_all_topic('#花样滑冰', '5867893415')
-    # get_all_topic('#花滑', '5867893415')
-    # get_all_topic('#冬奥会', '5867893415')
+    # get_all_topic('花样滑冰', '5867893415')
+    # get_all_topic('花滑', '5867893415')
+    # get_all_topic('冬奥会', '5867893415')
+    # threds.append(threading.Thread(target=get_all_topic, args=('花样滑冰', '5867893415')))
+    # threds.append(threading.Thread(target=get_all_topic, args=('花滑', '5867893415')))
+    # threds.append(threading.Thread(target=get_all_topic, args=('冬奥会', '5867893415')))
+
     #
     # #资生堂中国杯花样滑冰大奖赛
-    get_all_topic('#花样滑冰', '1805036724')
-    get_all_topic('#花滑', '1805036724')
-    get_all_topic('#冬奥会', '1805036724')
+    get_all_topic('花样滑冰', '1805036724')
+    get_all_topic('花滑', '1805036724')
+    get_all_topic('冬奥会', '1805036724')
+
+    # for t in threds:
+    #     t.setDaemon(True)
+    #     t.start()
+    # for t in threds:
+    #     t.join()
