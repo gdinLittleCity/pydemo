@@ -357,8 +357,8 @@ if __name__ == '__main__':
 
     #
     # #资生堂中国杯花样滑冰大奖赛
-    get_all_topic('花样滑冰', '1805036724')
-    get_all_topic('花滑', '1805036724')
+    # get_all_topic('花样滑冰', '1805036724')
+    # get_all_topic('花滑', '1805036724')
     get_all_topic('冬奥会', '1805036724')
 
     # for t in threds:
