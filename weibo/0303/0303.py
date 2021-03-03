@@ -56,7 +56,8 @@ def parse_weibo_json(profile_uid, res_json_obj):
         if card_type == 9:
             pos = pos + 1
             print('第{page}页微博,第{pos}条微博,card_type:9'.format(page=page, pos=pos))
-            before_comment(weibo, pos, page, profile_uid)
+            file_name = 'weibo.txt'
+            before_comment(weibo, pos, page, profile_uid, file_name)
         # 微博card list 更多热门微博、更多热门视频、实时微博、相关话题
         if card_type == 11:
             print('第{page}页微博,第{pos}条微博,,card_type:11 - 拆分'.format(page=page, pos=pos))
@@ -65,7 +66,8 @@ def parse_weibo_json(profile_uid, res_json_obj):
                 for card in card_group:
                     if card['card_type'] == 9:
                         print('-------第{pos}条微博,实际使用card_type:9'.format(pos=pos))
-                        before_comment(card, pos, page, profile_uid)
+                        file_name = 'weibo.txt'
+                        before_comment(card, pos, page, profile_uid, file_name)
                         pos = pos + 1
         # 其他微博card不处理
 
@@ -120,7 +122,7 @@ def get_response(url, headers):
     return res_json_obj
 
 
-def before_comment(weibo, pos, page, profile_uid):
+def before_comment(weibo, pos, page, profile_uid, file_name):
     create_at = weibo['mblog']['created_at']
     weibo_year = get_weibo_create_year(create_at)
     if int(weibo_year) < 2013:
@@ -133,25 +135,21 @@ def before_comment(weibo, pos, page, profile_uid):
     print('第{page}页,第{pos}条微博,发布时间:{year},评论数:{cmt_count},内容:{content}'.format(page=page, pos=pos, year=create_at, cmt_count=cmt_count, content=str(weibo['mblog']['text'])))
     # 评论
     if len(item_id) != 0:
-        storege = get_comments(profile_uid, weibo, urllib.parse.quote(item_id), mid, cmt_count)
-        with open("weibo.txt", 'a', encoding="utf-8") as finish_file:
-            finish_file.write(str(storege) + "\r\n")
+        storege = get_comments(profile_uid, mid)
+        with open(file_name, 'a', encoding="utf-8") as finish_file:
+            finish_file.write(json.dumps(storege, ensure_ascii=False) + "\n")
 
 def get_weibo_create_year(gmt_time_str:str): # 获取微博发布时间-年份
     return gmt_time_str[len(gmt_time_str)-4: len(gmt_time_str)]
 
-def get_comments(profile_uid, weibo, item_id, mid, cmt_count):
+
+def get_comments(profile_uid, mid):
     storege = {'name': '', 'content': '', 'create':'', 'reposts_count': 0, 'comments_count': 0, 'attitudes_count': 0, 'comments': []}
     cum = get_cum()
-    create_at = weibo['mblog']['created_at']
-    weibo_year = get_weibo_create_year(create_at)
-
     host = 'https://api.weibo.cn'
-    # 总评论数
-    cmt_count = cmt_count
     # 单页数据量
     count = 20
-    path = get_cmt_query_url(profile_uid, weibo_year, item_id, mid, cum, count, False, 0, '')
+    path = get_cmt_query_url(profile_uid,  mid, cum, count, False, 0, '')
     headers = get_header(path)
     path_url = host + path
     sessions = requests.session()
@@ -162,11 +160,12 @@ def get_comments(profile_uid, weibo, item_id, mid, cmt_count):
         # 转发数, 评论数, 点赞数, 作者, 内容
         build_weibo_count(res_json_obj, storege)
         # 评论
-        storege['comments'].extend(parse_cmt_res(profile_uid, weibo_year, res_json_obj, item_id, mid, count))
+        storege['comments'].extend(parse_cmt_res(profile_uid,  res_json_obj, mid, count))
     except Exception:
-        print(str(item_id) + "评论 解析异常")
+        print("评论 解析异常")
         raise Exception
     return storege
+
 
 def build_weibo_count(res_json_obj, storege):
     if 'status' in res_json_obj:
@@ -187,7 +186,8 @@ def build_weibo_count(res_json_obj, storege):
         if 'text' in weibo_content:
             storege['content'] = weibo_content['text']
 
-def parse_cmt_res(profile_uid, weibo_year, res_json_obj, item_id, mid, count):
+
+def parse_cmt_res(profile_uid, res_json_obj,  mid, count):
     comments = []
     cmt_list = []
     if 'datas' in res_json_obj:
@@ -228,10 +228,10 @@ def parse_cmt_res(profile_uid, weibo_year, res_json_obj, item_id, mid, count):
         print('分页评论:')
         cum = get_cum()
         host = 'https://api.weibo.cn'
-        path = get_cmt_query_url(profile_uid, weibo_year, item_id, mid, cum, count, True, res_json_obj['max_id'], '')
+        path = get_cmt_query_url(profile_uid, mid, cum, count, True, res_json_obj['max_id'], '')
         if 'top_hot_structs' in res_json_obj and any(res_json_obj['top_hot_structs']):
             top_hot_structs = res_json_obj['top_hot_structs']
-            path = get_cmt_query_url(weibo_year, item_id, mid, cum, count, True, top_hot_structs['call_back_struct']['max_id_str'], top_hot_structs['call_back_struct']['callback_ext_params'])
+            path = get_cmt_query_url(profile_uid, mid, cum, count, True, top_hot_structs['call_back_struct']['max_id_str'], top_hot_structs['call_back_struct']['callback_ext_params'])
 
         headers = get_header(path)
         path_url = host + path
@@ -240,19 +240,18 @@ def parse_cmt_res(profile_uid, weibo_year, res_json_obj, item_id, mid, count):
         res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
         try:
             res_json_obj_page = json.loads(res.content)
-            comments.extend(parse_cmt_res(profile_uid, weibo_year, res_json_obj_page, item_id, mid, count))
+            comments.extend(parse_cmt_res(profile_uid, res_json_obj_page,  mid, count))
         except Exception:
-            print(str(item_id)+"评论 解析异常")
+            print("分页评论 解析异常")
             raise Exception
-
-
     return comments
+
 
 def cycle_cmt(profile_uid, cmt):
     cmt_list = []
     host = 'https://api.weibo.cn'
     # 有二级评论
-    if 'more_info' in cmt:
+    if 'more_info' in cmt or int(cmt['max_id']) > 0:
         cmt_id = cmt['id']
         path = get_level2_query_url(profile_uid, cmt_id, False, '')
         headers = get_header(path)
@@ -262,6 +261,14 @@ def cycle_cmt(profile_uid, cmt):
         res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
         res_json_obj_page = json.loads(res.content)
         cmt_list.extend(parse_syscle_cmt_res(res_json_obj_page, profile_uid, cmt_id))
+    elif 'comments' in cmt and len(cmt['comments']) > 0:
+        for cmt_com in cmt['comments']:
+            com = {'user': '', 'text': ''}
+            cmt_com_text = cmt_com['text']
+            cmt_com_user = cmt_com['user']['name']
+            com['user'] = cmt_com_user
+            com['text'] = cmt_com_text
+            cmt_list.append(com)
     return cmt_list
 
 
@@ -328,7 +335,7 @@ def get_level2_query_url(profile_uid, cmt_id, is_page, max_id):
     return url
 
 
-def get_cmt_query_url(profile_uid, weibo_year, item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
+def get_cmt_query_url(profile_uid, mid, cum, count, is_page ,max_id, callback_ext_params):
     max_id_param_str = 'max_id=0&recommend_page=1&'
     is_reload_str = 'is_reload=1&'
     refresh_type_str = 'refresh_type=1&'
@@ -363,4 +370,15 @@ def get_cmt_query_url(profile_uid, weibo_year, item_id, mid, cum, count, is_page
 
 
 if __name__ == '__main__':
-    get_all_topic('1875286971', '')
+    # get_all_topic('1875286971', '')
+    # storege = get_comments('2656274875', '4586358889254746')
+    # with open('weibo-4586358889254746.txt', 'a', encoding="utf-8") as finish_file:
+    #     finish_file.write(json.dumps(storege, ensure_ascii=False) + "\n")
+
+    storege = get_comments('6105713761', '4578041252025923')
+    with open('weibo-4578041252025923.txt', 'a', encoding="utf-8") as finish_file:
+        finish_file.write(json.dumps(storege, ensure_ascii=False) + "\n")
+
+    storege_2 = get_comments('2286092114', '4578506090744246')
+    with open('weibo-4578506090744246.txt', 'a', encoding="utf-8") as finish_file:
+        finish_file.write(json.dumps(storege_2, ensure_ascii=False) + "\n")

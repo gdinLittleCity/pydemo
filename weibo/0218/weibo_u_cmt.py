@@ -266,7 +266,7 @@ def cycle_cmt(cmt):
     return cmt_list
 
 
-def get_cmt_query_url(weibo_year, topic, item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
+def get_cmt_query_url(weibo_year, topic, mid, cum, count, is_page ,max_id, callback_ext_params):
     if int(weibo_year) <= 2014:
         query = '/2/comments/show?networktype=wifi&with_common_cmt_new=1&sensors_device_id=none&' \
                 'uicode=10000002&moduleID=710&featurecode=10000085&wb_version=4033&refresh_type=1&' \
@@ -286,9 +286,9 @@ def get_cmt_query_url(weibo_year, topic, item_id, mid, cum, count, is_page ,max_
     if is_page :
         max_id_param_str = 'max_id=' + str(max_id) + '&'
         callback_ext_params_str = str(callback_ext_params) + '&'
-    orifid = '231093_-_selffollowed$$231093_-_selfgroup_-_mygroup$$231093_-_selfgroupfollow_-_4605965338415552$$2302831854869497$$100303type=401&q={topic}&t=0'.format(
-        topic = topic
-    )
+    # orifid = '231093_-_selffollowed$$231093_-_selfgroup_-_mygroup$$231093_-_selfgroupfollow_-_4605965338415552$$2302831854869497$$100303type=401&q={topic}&t=0'.format(
+    #     topic = topic
+    # )
             # 'orifid={orifid}&' \
             # 'lcardid={lcardid}' \
             # 'ext=orifid%3A{orifid}{ext}&' \
@@ -304,7 +304,7 @@ def get_cmt_query_url(weibo_year, topic, item_id, mid, cum, count, is_page ,max_
             'ignore_inturrpted_error=true&luicode=10000003&sensors_mark=0&android_id=82207eba77e0887a&' \
             'fetch_level=0&is_append_blogs=1&{callback_ext_params_str}request_type=default&max_id_type=0&sensors_is_first_day=none' \
             '&cum={cum}'.format(max_id_param_str=max_id_param_str,is_reload_str = is_reload_str,
-                                orifid=urllib.parse.quote(orifid),
+                                # orifid=urllib.parse.quote(orifid),
                                 refresh_type_str=refresh_type_str,
                                 topic=urllib.parse.quote(topic),
                                 mid=mid, count=count,
