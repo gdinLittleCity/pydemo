@@ -162,9 +162,10 @@ def get_comments(profile_uid, weibo, item_id, mid, cmt_count):
         # 转发数, 评论数, 点赞数, 作者, 内容
         build_weibo_count(res_json_obj, storege)
         # 评论
-        storege['comments'].extend(parse_cmt_res(weibo_year, res_json_obj, item_id, mid, count))
-    except:
+        storege['comments'].extend(parse_cmt_res(profile_uid, weibo_year, res_json_obj, item_id, mid, count))
+    except Exception:
         print(str(item_id) + "评论 解析异常")
+        raise Exception
     return storege
 
 def build_weibo_count(res_json_obj, storege):
@@ -186,7 +187,7 @@ def build_weibo_count(res_json_obj, storege):
         if 'text' in weibo_content:
             storege['content'] = weibo_content['text']
 
-def parse_cmt_res(weibo_year, res_json_obj, item_id, mid, count):
+def parse_cmt_res(profile_uid, weibo_year, res_json_obj, item_id, mid, count):
     comments = []
     cmt_list = []
     if 'datas' in res_json_obj:
@@ -211,14 +212,14 @@ def parse_cmt_res(weibo_year, res_json_obj, item_id, mid, count):
             cmt_user = one['user']['name']
             comment['user'] = cmt_user
             comment['text'] = cmt_text
-            comment['cmts'] = cycle_cmt(one)
+            comment['cmts'] = cycle_cmt(profile_uid, one)
         # root_comments 结构评论
         else:
             cmt_text = cmt['text']
             cmt_user = cmt['user']['name']
             comment['user'] = cmt_user
             comment['text'] = cmt_text
-            comment['cmts'] = cycle_cmt(cmt)
+            comment['cmts'] = cycle_cmt(profile_uid, cmt)
 
         comments.append(comment)
         print('评论:{cmt_content}'.format(cmt_content=str(comment)))
@@ -227,7 +228,7 @@ def parse_cmt_res(weibo_year, res_json_obj, item_id, mid, count):
         print('分页评论:')
         cum = get_cum()
         host = 'https://api.weibo.cn'
-        path = get_cmt_query_url(weibo_year, item_id, mid, cum, count, True, res_json_obj['max_id'], '')
+        path = get_cmt_query_url(profile_uid, weibo_year, item_id, mid, cum, count, True, res_json_obj['max_id'], '')
         if 'top_hot_structs' in res_json_obj and any(res_json_obj['top_hot_structs']):
             top_hot_structs = res_json_obj['top_hot_structs']
             path = get_cmt_query_url(weibo_year, item_id, mid, cum, count, True, top_hot_structs['call_back_struct']['max_id_str'], top_hot_structs['call_back_struct']['callback_ext_params'])
@@ -239,24 +240,92 @@ def parse_cmt_res(weibo_year, res_json_obj, item_id, mid, count):
         res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
         try:
             res_json_obj_page = json.loads(res.content)
-            comments.extend(parse_cmt_res(weibo_year, res_json_obj_page, item_id, mid, count))
-        except:
+            comments.extend(parse_cmt_res(profile_uid, weibo_year, res_json_obj_page, item_id, mid, count))
+        except Exception:
             print(str(item_id)+"评论 解析异常")
+            raise Exception
 
 
     return comments
 
-def cycle_cmt(cmt):
+def cycle_cmt(profile_uid, cmt):
     cmt_list = []
-    if 'comments' in cmt and len(cmt['comments']) > 0:
-        for cmt_com in cmt['comments']:
-            com = {'user': '', 'text': ''}
-            cmt_com_text = cmt_com['text']
-            cmt_com_user = cmt_com['user']['name']
-            com['user'] = cmt_com_user
-            com['text'] = cmt_com_text
-            cmt_list.append(com)
+    host = 'https://api.weibo.cn'
+    # 有二级评论
+    if 'more_info' in cmt:
+        cmt_id = cmt['id']
+        path = get_level2_query_url(profile_uid, cmt_id, False, '')
+        headers = get_header(path)
+        path_url = host + path
+        sessions = requests.session()
+        sessions.mount(host, HTTP20Adapter())
+        res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
+        res_json_obj_page = json.loads(res.content)
+        cmt_list.extend(parse_syscle_cmt_res(res_json_obj_page, profile_uid, cmt_id))
     return cmt_list
+
+
+def parse_syscle_cmt_res(res_json_obj, profile_uid, cmt_id):
+    comments = []
+    cmt_list = []
+    if 'comments' in res_json_obj:
+        cmt_list = res_json_obj['comments']
+    if len(cmt_list) == 0:
+        print('无评论{data}'.format(data=str(cmt_list)))
+        return comments
+    for cmt in cmt_list:
+        comment = {'user': '', 'text': ''}
+        cmt_text = cmt['text']
+        cmt_user = cmt['user']['name']
+        comment['user'] = cmt_user
+        comment['text'] = cmt_text
+        comments.append(comment)
+        print('评论:{cmt_content}'.format(cmt_content=str(comment)))
+    # 分页评论
+    if ('max_id' in res_json_obj and res_json_obj['max_id'] != 0) or ('top_hot_structs' in res_json_obj and any(res_json_obj['top_hot_structs'])):
+        print('二级分页评论:')
+        cum = get_cum()
+        host = 'https://api.weibo.cn'
+        path = get_level2_query_url(profile_uid, cmt_id, True, res_json_obj['max_id_str'])
+        headers = get_header(path)
+        path_url = host + path
+        sessions = requests.session()
+        sessions.mount(host, HTTP20Adapter())
+        res = sessions.get(url=path_url, headers=headers, timeout=(60, 600))
+        try:
+            res_json_obj_page = json.loads(res.content)
+            comments.extend(parse_syscle_cmt_res(res_json_obj_page, profile_uid, cmt_id))
+        except Exception:
+            print("二级评论 解析异常")
+            raise Exception
+    return comments
+
+def get_level2_query_url(profile_uid, cmt_id, is_page, max_id):
+    orifid = '231093_-_selffollowed$$107603{profile_uid}_-_WEIBO_SECOND_PROFILE_WEIBO%24%240'.format(profile_uid=profile_uid)
+    oriuicode = '10000011_10000198_10000002'
+    ext = 'orifid%3A{orifid}|oriuicode%3A{oriuicode}'.format(orifid= orifid, oriuicode=oriuicode)
+    max_id_param_str = 'max_id=0&recommend_page=1&'
+    if is_page:
+        max_id_param_str = 'max_id=' + str(max_id) + '&'
+    url = '/2/comments/build_comments?networktype=wifi&sensors_device_id=none&is_mix=1&&{max_id_param_str}' \
+          '&recommend_page=1' \
+          '&orifid={orifid}' \
+          '&is_show_bulletin=2' \
+          '&uicode=10000408' \
+          '&moduleID=700&trim_user=0&is_reload=1' \
+          '&wb_version=4033&is_encoded=0&c=android&s=08d12f15&ft=0&id={cmt_id}' \
+          '&ua=Netease-MuMu__weibo__9.8.4__android__android6.0.1' \
+          '&wm=2468_1001&aid=01A212u2E42R0FrTeYaODL9JPnzYBnf7yILsgPn4bkjDmlbKc.' \
+          '&ext={ext}&v_f=2&v_p=76&from=1098495010' \
+          '&gsid=_2A25NO1V3DeRxGeFO61cU9C7MzjiIHXVsUe-_rDV6PUJbkdAKLXXukWpNQYVgzSw1ebzUkvAAXMFBhuanTXNwM6E3' \
+          '&lang=zh_CN&skin=default&count=20' \
+          '&oldwm=2468_1001&sflag=1' \
+          '&oriuicode={oriuicode}&ignore_inturrpted_error=true' \
+          '&luicode=10000002&sensors_mark=0&android_id=82207eba77e0887a' \
+          '&fetch_level=1&is_append_blogs=1&request_type=default&max_id_type=0&sensors_is_first_day=none' \
+          '&cum=8A58BFCA'.format(max_id_param_str=max_id_param_str,
+                                 profile_uid=profile_uid, orifid=orifid, cmt_id=cmt_id, ext=ext, oriuicode=oriuicode)
+    return url
 
 
 def get_cmt_query_url(profile_uid, weibo_year, item_id, mid, cum, count, is_page ,max_id, callback_ext_params):
@@ -270,9 +339,6 @@ def get_cmt_query_url(profile_uid, weibo_year, item_id, mid, cum, count, is_page
     orifid = '231093_-_selffollowed$$107603{profile_uid}_-_WEIBO_SECOND_PROFILE_WEIBO'.format(profile_uid=profile_uid)
     lcardid = '107603{profile_uid}_-_WEIBO_SECOND_PROFILE_WEIBO_-_{mid}'.format(profile_uid=profile_uid, mid=mid)
     ext = 'orifid:{orifid}|oriuicode:10000011_10000198'
-            # 'orifid={orifid}&' \
-            # 'lcardid={lcardid}' \
-            # 'ext=orifid%3A{orifid}{ext}&' \
     query = '/2/comments/build_comments?networktype=wifi&sensors_device_id=none&is_mix=1&{max_id_param_str}' \
             'is_show_bulletin=2&uicode=10000002&moduleID=700&' \
             '&trim_user=0&{is_reload_str}featurecode=10000085&wb_version=4033&is_encoded=0&' \
